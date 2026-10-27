@@ -130,6 +130,7 @@ const DIR=[{x:0,y:1},{x:0,y:-1},{x:-1,y:0},{x:1,y:0}];
 function armPt(team,d){ const dir=DIR[team]; return{x:C+dir.x*d, y:C+dir.y*d}; }
 let agents=[],minions=[],fx=[],texts=[],structs=[],camps=[],projs=[],over=false,perfT=0,feedMsg='',feedT=0,waveT=2;
 let sel=null,camMode='follow',curSrc=null;
+let focusA=null;
 const PCOL={nova:'#ffe27a',onyx:'#c39bff',pyre:'#ff9a3c',koda:'#a8e063',sable:'#8affa0',mira:'#aee9ff'};
 const ABNAME={rook:'Shield Slam',bram:'Tremor',nova:'Chain Bolt',onyx:'Void Pull',pyre:'Ember Spill',vex:'Fang Dash',koda:'Triple Shot',sable:'Mend',mira:'Ice Prison',talon:'Chain Hook',creed:'Execution',juno:'Root Snare'};
 let buffs=[0,0,0,0];
@@ -589,7 +590,8 @@ function update(dt){
   if(camMode==='follow'){ let sx=0,sy=0,n=0; for(const a of agents)if(a.alive){sx+=a.x;sy+=a.y;n++;}
     if(warlore.mode!=='gone'){sx+=warlore.x*1.4;sy+=warlore.y*1.4;n+=1.4;}
     if(sel&&sel.alive){sx+=sel.x*1.6;sy+=sel.y*1.6;n+=1.6;}
-    if(n){cam.tx=clamp(sx/n,505,1695); cam.ty=clamp(sy/n,505,1695);} }
+    if(n){cam.tx=clamp(sx/n,505,1695); cam.ty=clamp(sy/n,505,1695);}
+    if(focusA){ if(focusA.alive){cam.tx=clamp(focusA.x,505,1695); cam.ty=clamp(focusA.y,505,1695);} else focusA=null; } }
   cam.x+=(cam.tx-cam.x)*Math.min(1,dt*2.2); cam.y+=(cam.ty-cam.y)*Math.min(1,dt*2.2);
   for(const t of TEAMS){ const ti=structs.find(s=>s.kind==='titan'&&s.team===t);
     document.getElementById('hp'+t).style.width=Math.max(0,ti.hp/ti.max*100)+'%'; }
@@ -1011,21 +1013,52 @@ function voiceCommand(raw){ const s=' '+String(raw).toLowerCase().replace(/[^a-z
   if(/fall ?back|retreat/.test(s)){ const tp=armPt(0,950); a.order={x:tp.x,y:tp.y}; sel=a; say(a,'Falling back'); feed(a.name+': falling back'); return true; }
   if(/hold|defend|stay/.test(s)){ sel=a; say(a,'Holding here'); feed(a.name+': holding'); return true; }
   feed('Didn\'t catch that — try "'+a.name+' push orbs"'); return false; }
-let recog=null;
+let recog=null, voiceLive=false, recogRestarts=0;
+// ---------- name board: tap the mic and everybody's name pops up, big ----------
+const rosterEl=document.createElement('div');
+rosterEl.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:9;display:none;flex-wrap:wrap;gap:8px;justify-content:center;background:rgba(6,8,14,.93);border:1.5px solid #b8860b;border-radius:14px;padding:10px';
+document.body.appendChild(rosterEl);
+function showRoster(){ rosterEl.innerHTML='';
+  for(const ag of agents){ const chip=document.createElement('button');
+    chip.dataset.name=ag.name; chip.dataset.team=ag.team;
+    chip.style.cssText='flex:1 1 30%;max-width:31%;background:rgba(16,20,32,.95);border:1.5px solid '+TEAMCOL[ag.team]+';border-radius:10px;padding:7px 4px;color:#fff;cursor:pointer';
+    chip.innerHTML='<div style="font-size:19px;font-weight:bold;color:'+TEAMCOL[ag.team]+';letter-spacing:.5px">'+ag.name+'</div><div style="font-size:10px;color:#b9c2d8">'+TEAMNAME[ag.team]+(ag.alive?'':' · DOWN')+'</div>';
+    if(!ag.alive)chip.style.opacity='.38';
+    chip.onclick=()=>{ pickName(ag); };
+    rosterEl.appendChild(chip); }
+  rosterEl.style.display='flex'; syncRosterSel(); }
+function hideRoster(){ rosterEl.style.display='none'; }
+function syncRosterSel(){ for(const chip of rosterEl.children){ const on=sel&&chip.dataset.name===sel.name;
+  chip.style.background=on?'#ffd76a':'rgba(16,20,32,.95)';
+  if(chip.firstChild)chip.firstChild.style.color=on?'#14100a':TEAMCOL[+chip.dataset.team]; } }
+function pickName(ag){ if(!ag||!ag.alive)return; sel=ag; focusA=ag; camMode='follow'; camBtn.textContent='CAM · FOLLOW'; syncRosterSel();
+  feed('▸ '+ag.name+' — following'+(ag.team===0?' — say your order':' · '+TEAMNAME[ag.team]+' — watching')); }
+function handleHeard(txt){ recogRestarts=0;
+  const s=' '+String(txt).toLowerCase().replace(/[^a-z0-9' ]/g,' ')+' ';
+  let named=null; for(const ag of agents)if(ag.alive&&s.includes(' '+ag.name.toLowerCase()))named=ag;
+  if(named){ pickName(named);
+    const rest=s.replace(' '+named.name.toLowerCase(),' ');
+    const hasCmd=/push|orbs?|chest|lane|retreat|fall|hold|defend|stay|warlore|boss/.test(rest);
+    if(!hasCmd)return true;
+    if(named.team!==0){ feed('▸ '+named.name+' fights for '+TEAMNAME[named.team]+' — yours are BLUE'); return true; } }
+  const ok=voiceCommand(txt); syncRosterSel(); return ok; }
+function endVoice(){ voiceLive=false; if(recog){ try{recog.stop();}catch(_){} recog=null; } micBtn.textContent='🎤 VOICE'; hideRoster(); }
+function startRecog(SR){ recog=new SR(); recog.lang='en-US'; recog.interimResults=false;
+  recog.onresult=e=>{ const txt=e.results[0][0].transcript; handleHeard(txt); };
+  recog.onerror=e=>{ const c=e&&e.error;
+    if(c==='not-allowed'||c==='service-not-allowed'){ feed('Mic is blocked — allow microphone access for this page, then tap VOICE again'); endVoice(); }
+    else if(c==='audio-capture'){ feed('No microphone found on this device'); endVoice(); }
+    else if(c==='network')feed('Voice service unreachable — check your connection');
+    else if(c==='no-speech')feed('Didn\'t hear anything — speak up, Coach');
+    else feed('Mic didn\'t catch that'); };
+  recog.onend=()=>{ if(!voiceLive){ recog=null; return; }
+    recogRestarts++; if(recogRestarts>40){ endVoice(); return; }
+    setTimeout(()=>{ if(voiceLive&&recog){ try{ recog.start(); }catch(_){ startRecog(SR); } } },180); };
+  try{ recog.start(); }catch(err){ recog=null; } }
 micBtn.onclick=()=>{ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ feed('No voice recognition in this viewer — open the game link in Chrome for voice, or use ⌨️ TYPE'); return; }
-  if(recog){ recog.stop(); recog=null; micBtn.textContent='🎤 VOICE'; return; }
-  recog=new SR(); recog.lang='en-US'; recog.interimResults=false;
-  micBtn.textContent='🔴 LISTENING…'; feed('Listening, Coach…');
-  recog.onresult=e=>{ const txt=e.results[0][0].transcript; voiceCommand(txt); };
-  recog.onerror=e=>{ const c=e&&e.error;
-    if(c==='not-allowed'||c==='service-not-allowed')feed('Mic is blocked — allow microphone access for this page, then tap VOICE again');
-    else if(c==='network')feed('Voice service unreachable — check your connection');
-    else if(c==='no-speech')feed('Didn\'t hear anything — tap VOICE and speak');
-    else if(c==='audio-capture')feed('No microphone found on this device');
-    else feed('Mic didn\'t catch that'); };
-  recog.onend=()=>{ recog=null; micBtn.textContent='🎤 VOICE'; };
-  try{ recog.start(); }catch(err){ recog=null; micBtn.textContent='🎤 VOICE'; } };
+  if(voiceLive){ endVoice(); return; }
+  voiceLive=true; recogRestarts=0; micBtn.textContent='🔴 LISTENING…'; feed('Listening, Coach — say a name'); showRoster(); startRecog(SR); };
 function s2w(px,py){ return{x:cam.x+(px-VW/2)/cam.s, y:cam.y+(py-VH/2)/(cam.s*0.88)}; }
 function handleTap(px,py){ const wpt=s2w(px,py);
   let bestA=null,bd=52; for(const a of agents)if(a.alive&&a.team===0){const d=Math.hypot(a.x-wpt.x,a.y-26-wpt.y); if(d<bd){bd=d;bestA=a;}}
