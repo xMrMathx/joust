@@ -43,8 +43,8 @@
  <button class="mapBtn" data-map="grove">🌿 SANCTUARY GROVE<span>Single lane · 3v3 · the deep green</span></button>
  <button class="mapBtn" data-map="plus">✚ PLUS<span>Four lanes · 3v3v3v3 · Orbs · the Chest · Alliances</span></button>
  <button class="mapBtn" data-map="crossing">✕ THE CROSSING<span>Four teams on the diagonal · Orbs · the Chest · Alliances</span></button>
- <button class="mapBtn" data-map="roads">⫴ THREE ROADS<span>Three lanes · 3v3 · classic MOBA roads</span></button>
- <button class="mapBtn" data-map="deepwood">🌲 DEEPWOOD ROADS<span>Three lanes · 3v3 · the deep green</span></button>
+ <button class="mapBtn" data-map="roads">⫴ THREE ROADS<span>Three lanes · 5v5 · Smite-style</span></button>
+ <button class="mapBtn" data-map="deepwood">🌲 DEEPWOOD ROADS<span>Three lanes · 5v5 · Smite-style, deep green</span></button>
  <button id="menuBack" style="display:none;margin-top:14px;background:#222;color:#fff;border:1px solid #555;border-radius:10px;padding:10px 22px;font-size:14px;cursor:pointer">← BACK TO MATCH</button>
 </div>
 <div id="banner"><h1 id="bannerTxt">VICTORY</h1><div id="bannerSub"></div><button onclick="init()">PLAY AGAIN</button></div>
@@ -58,7 +58,7 @@ const W=2200,H=2200,C=1100,ARM=150;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v, dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const DEFLAIRS=[{x:C+335,y:C},{x:C-335,y:C}]; let LAIRS=DEFLAIRS;
 const CCENTERS=[{x:C-560,y:C,ax:-1},{x:C+560,y:C,ax:1}];
-const LANEX=[C-620,C,C+620];
+const LANEY=[C-640,C,C+640];
 function inCBand(x,y){ for(const P of CCENTERS){ const vx=x-P.x, vy=y-P.y, r=Math.hypot(vx,vy);
   if(r>214&&r<386&&(vx*P.ax)/r>-0.42)return true; } return false; }
 const MAPS={
@@ -74,11 +74,13 @@ const MAPS={
   rot:Math.PI/4, dirs:[{x:.7071,y:.7071},{x:-.7071,y:-.7071},{x:-.7071,y:.7071},{x:.7071,y:-.7071}],
   hint:'THE CROSSING — four teams on the diagonal. Orbs, the Chest, Alliances — last team standing.'},
  roads:{id:'roads',title:'THREE ROADS — last team standing',teams:[0,1],ring:false,lanes3:true,orbs:false,chest:false,alliance:false,warMode:'pace',ground:'lanes3',grove:false,
-  camps:[{x:C-310,y:C-430},{x:C+310,y:C-430},{x:C-310,y:C+430},{x:C+310,y:C+430}], lairs:[{x:C-310,y:C},{x:C+310,y:C}],
-  hint:'THREE ROADS — three lanes, jungle between, like the classic MOBAs. Break a Phoenix to expose their Titan.'},
+  dirs:[{x:-1,y:0},{x:1,y:0},{x:0,y:1},{x:0,y:-1}], roster:[['ROOK','BRAM','NOVA','SABLE','KODA'],['ONYX','PYRE','VEX','MIRA','TALON']],
+  camps:[{x:470,y:C-330},{x:C,y:C-330},{x:1730,y:C-330},{x:470,y:C+330},{x:C,y:C+330},{x:1730,y:C+330}], lairs:[{x:760,y:C-330},{x:1440,y:C+330}],
+  hint:'THREE ROADS — Smite-style 5v5. Two towers and a Phoenix on every lane; top is Solo by the Fire Giant pit, bottom is Duo by the Gold Fury pit. Drop a Phoenix and their Titan is exposed.'},
  deepwood:{id:'deepwood',title:'DEEPWOOD ROADS — last team standing',teams:[0,1],ring:false,lanes3:true,orbs:false,chest:false,alliance:false,warMode:'pace',ground:'lanes3',grove:true,
-  camps:[{x:C-310,y:C-430},{x:C+310,y:C-430},{x:C-310,y:C+430},{x:C+310,y:C+430}], lairs:[{x:C-310,y:C},{x:C+310,y:C}],
-  hint:'DEEPWOOD ROADS — three lanes through the deep green. Break a Phoenix to expose their Titan.'},
+  dirs:[{x:-1,y:0},{x:1,y:0},{x:0,y:1},{x:0,y:-1}], roster:[['ROOK','BRAM','NOVA','SABLE','KODA'],['ONYX','PYRE','VEX','MIRA','TALON']],
+  camps:[{x:470,y:C-330},{x:C,y:C-330},{x:1730,y:C-330},{x:470,y:C+330},{x:C,y:C+330},{x:1730,y:C+330}], lairs:[{x:760,y:C-330},{x:1440,y:C+330}],
+  hint:'DEEPWOOD ROADS — Smite-style 5v5 through the deep green. Two towers and a Phoenix on every lane. Drop a Phoenix and their Titan is exposed.'},
 };
 let MAP=MAPS.plus, TEAMS=MAP.teams;
 let seed=11; const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646;};
@@ -94,8 +96,8 @@ const angNorm=a=>{ while(a>Math.PI)a-=Math.PI*2; while(a<-Math.PI)a+=Math.PI*2; 
 const ringJungle=(x,y)=>{ const r=radOf(x,y); return r>JR_IN&&r<JR_OUT; };
 function laneJungle(x,y){ for(const P of CCENTERS)if(Math.hypot(x-P.x,y-P.y)<240)return true;
   for(const L of LAIRS)if(Math.hypot(x-L.x,y-L.y)<132)return true; return false; }
-function laneOpen3(x,y){ if(Math.abs(y-C)<100)return true;
-  for(const lx of LANEX)if(Math.abs(x-lx)<100)return true;
+function laneOpen3(x,y){ if(Math.abs(x-C)<100)return true;
+  for(const ly of LANEY)if(Math.abs(y-ly)<100)return true;
   for(const t of TEAMS){ const tp=armPt(t,1010); if(Math.hypot(x-tp.x,y-tp.y)<330)return true; }
   for(const cp of (MAP.camps||[]))if(Math.hypot(x-cp.x,y-cp.y)<125)return true;
   for(const L of LAIRS)if(Math.hypot(x-L.x,y-L.y)<132)return true;
@@ -197,13 +199,16 @@ const AGENT_DEFS=[
 function mkAgent(d,i){ const home=armPt(d.team,880); const off=(i%3-1)*90; const dir=DIR[d.team];
   return{...d,max:d.hp,swingT:0,hitT:0,x:home.x+(dir.y!==0?off:0),y:home.y+(dir.x!==0?off:0),alive:true,respawn:0,atkT:0,abT:3+Math.random()*3,abCd:0,level:1,lungeT:0,vx:0,vy:0,order:null,orbTask:null,chestTask:false,carrying:null,thinkT:0,thinkTxt:'',stun:0,face:1,bob:Math.random()*6}; }
 function init(){
-  agents=AGENT_DEFS.filter(d=>TEAMS.includes(d.team)).map(mkAgent); minions=[]; fx=[]; texts=[]; projs=[]; over=false; perfT=0; buffs=[0,0,0,0]; waveT=2; sel=null; allyPairs=[]; allyCards=[2,2,2,2]; allyAiT=18; allyArm=false;
+  agents=[]; if(MAP.roster){ for(let ti=0;ti<TEAMS.length;ti++)for(const n of MAP.roster[ti]){ const d=AGENT_DEFS.find(x=>x.name===n); agents.push(mkAgent(Object.assign({},d,{team:TEAMS[ti]}), agents.length)); } }
+  else agents=AGENT_DEFS.filter(d=>TEAMS.includes(d.team)).map(mkAgent);
+  minions=[]; fx=[]; texts=[]; projs=[]; over=false; perfT=0; buffs=[0,0,0,0]; waveT=2; sel=null; allyPairs=[]; allyCards=[2,2,2,2]; allyAiT=18; allyArm=false;
   chest.x=C; chest.y=C; chest.moving=-1;
   structs=[]; if(MAP.lanes3){ const f=0.8;
-    for(const t of TEAMS){ const sgn=t===0?1:-1;
-      structs.push({team:t,kind:'titan',x:C,y:C+sgn*1010,hp:Math.round(3000*f),max:Math.round(3000*f),r:80,alive:true,d:1010,lane:-1});
-      LANEX.forEach((lx,li)=>{ structs.push({team:t,kind:'tower',x:lx,y:C+sgn*330,hp:Math.round(1200*f),max:Math.round(1200*f),r:50,alive:true,d:330,lane:li});
-        structs.push({team:t,kind:'phoenix',x:lx,y:C+sgn*640,hp:Math.round(1500*f),max:Math.round(1500*f),r:56,alive:true,d:640,lane:li}); }); } }
+    for(const t of TEAMS){ const dirx=t===0?-1:1;
+      structs.push({team:t,kind:'titan',x:C+dirx*1010,y:C,hp:Math.round(3000*f),max:Math.round(3000*f),r:80,alive:true,d:1010,lane:-1});
+      LANEY.forEach((ly,li)=>{ structs.push({team:t,kind:'tower',x:C+dirx*150,y:ly,hp:Math.round(1200*f),max:Math.round(1200*f),r:50,alive:true,d:150,lane:li});
+        structs.push({team:t,kind:'tower',x:C+dirx*400,y:ly,hp:Math.round(1500*f),max:Math.round(1500*f),r:50,alive:true,d:400,lane:li});
+        structs.push({team:t,kind:'phoenix',x:C+dirx*640,y:ly,hp:Math.round(1500*f),max:Math.round(1500*f),r:56,alive:true,d:640,lane:li}); }); } }
   else { const f=MAP.ring?1:0.8; for(const t of TEAMS){ structs.push(struct(t,'titan',1010,Math.round(3000*f),80),struct(t,'phoenix',700,Math.round(1500*f),56),struct(t,'tower',400,Math.round(1200*f),50)); } }
   camps=[]; if(MAP.ring){ for(let q=0;q<4;q++){ const a=qAng(q); camps.push(camp(C+Math.cos(a)*545, C+Math.sin(a)*545)); } } else { for(const cp of MAP.camps)camps.push(camp(cp.x,cp.y)); }
   orbs=[]; installed=[0,0,0,0];
@@ -224,7 +229,7 @@ function chainHeadInLane(team,lane){ const s=structs.filter(x=>x.team===team&&x.
 function teamOut(team){ return !structs.some(s=>s.team===team&&s.kind==='titan'&&s.alive); }
 function hurt(t,d,srcTeam,isAgentHit){
   if(t.hp===undefined||t.hp<=0)return;
-  if(MAP.lanes3&&t.kind==='titan'&&structs.some(s2=>s2.team===t.team&&s2.kind==='phoenix'&&s2.alive)){ if(perfT-(t.sealT||-9)>6){ t.sealT=perfT; feed(TEAMNAME[t.team]+' Titan is SEALED — break a Phoenix first'); } return; }
+  if(MAP.lanes3&&t.kind==='titan'&&!structs.some(s2=>s2.team===t.team&&s2.kind==='phoenix'&&!s2.alive)){ if(perfT-(t.sealT||-9)>6){ t.sealT=perfT; feed(TEAMNAME[t.team]+' Titan is SEALED — break a Phoenix first'); } return; }
   let mult=1; if(srcTeam>=0&&perfT<buffs[srcTeam])mult=1.2;
   t.hp-=d*mult;
   if(t===warlore&&srcTeam>=0)warlore.lastHit=srcTeam;
@@ -245,7 +250,7 @@ function onKill(t,srcTeam){
     if(t.carrying){ const o=t.carrying; o.state='dropped'; o.x=t.x; o.y=t.y; o.carrier=null; t.carrying=null; dmgText(t.x,t.y-74,'ORB DROPPED','#e8c9ff'); }
     if(curSrc&&curSrc.name&&curSrc!==t){ const k=curSrc; k.level=(k.level||1)+1; k.dmg=Math.round(k.dmg*1.05); k.max=Math.round(k.max*1.05); k.hp=Math.min(k.max,k.hp+Math.round(k.max*.12)); dmgText(k.x,k.y-88,'LEVEL '+k.level+'!','#ffe27a'); } }
   else if(t.kind){ feed(TEAMNAME[t.team]+' '+t.kind.toUpperCase()+' destroyed!');
-    if(MAP.lanes3&&t.kind==='phoenix'&&!structs.some(s2=>s2.team===t.team&&s2.kind==='phoenix'&&s2.alive))feed(TEAMNAME[t.team]+' — your TITAN IS EXPOSED');
+    if(MAP.lanes3&&t.kind==='phoenix'&&structs.filter(s2=>s2.team===t.team&&s2.kind==='phoenix'&&s2.alive).length===2)feed(TEAMNAME[t.team]+' — your TITAN IS EXPOSED');
     if(t.kind==='titan'){ for(const a of agents)if(a.team===t.team){a.alive=false;} minions=minions.filter(m=>m.team!==t.team);
       feed(TEAMNAME[t.team]+' IS OUT'); checkEnd(); } }
 }
@@ -544,7 +549,7 @@ function update(dt){
   waveT-=dt;
   if(waveT<=0){ waveT=14;
     for(const tm of TEAMS){ if(teamOut(tm))continue; const base=armPt(tm,960);
-      for(let i=0;i<3;i++){ if(MAP.lanes3)minions.push({team:tm,x:LANEX[i],y:base.y,hp:190,max:190,dmg:13,spd:44,atkT:0,alive:true,off:(i-1)*26,off2:(i%2?18:-18),bob:Math.random()*6,swingT:0,lane:i});
+      for(let i=0;i<3;i++){ if(MAP.lanes3){ for(let k=0;k<2;k++)minions.push({team:tm,x:base.x+(k?26:-26),y:LANEY[i],hp:190,max:190,dmg:13,spd:44,atkT:0,alive:true,off:(k?20:-20),off2:(i-1)*22,bob:Math.random()*6,swingT:0,lane:i}); }
         else minions.push({team:tm,x:base.x+(DIR[tm].y!==0?(i-1)*36:0),y:base.y+(DIR[tm].x!==0?(i-1)*36:0),hp:190,max:190,dmg:13,spd:44,atkT:0,alive:true,off:(i-1)*26,off2:(i%2?18:-18),bob:Math.random()*6,swingT:0}); } } }
   for(const a of agents){
     if(a.abCd>0)a.abCd-=dt; if(a.lungeT>0)a.lungeT-=dt; if(a.thinkT>0)a.thinkT-=dt; if(a.swingT>0)a.swingT-=dt; if(a.hitT>0)a.hitT-=dt;
@@ -759,16 +764,18 @@ function makeGroundLanes3(){ groundCv=document.createElement('canvas'); groundCv
   for(let i=0;i<340;i++){ const p=['rgba(24,52,26,.22)','rgba(74,125,63,.16)','rgba(46,96,80,.14)','rgba(58,32,96,.07)'][i%4];
     g.fillStyle=p; g.beginPath(); g.ellipse(r2()*W,r2()*H,40+r2()*140,26+r2()*86,r2()*3,0,7); g.fill(); }
   g.fillStyle='rgba(18,36,22,.30)';
-  for(const bx of [C-930,C-310,C+310])g.fillRect(bx,120,620,H-240);
+  g.fillRect(120,LANEY[0]+100,W-240,LANEY[1]-LANEY[0]-200); g.fillRect(120,LANEY[1]+100,W-240,LANEY[2]-LANEY[1]-200);
   const dirt=(x1,y1,x2,y2,w)=>{ g.strokeStyle='#6f5a36'; g.lineWidth=w; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
     g.strokeStyle='#7d663d'; g.lineWidth=w*.72; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); };
-  for(const lx of LANEX)dirt(lx,70,lx,H-70,150);
-  dirt(70,C,W-70,C,150);
+  for(const ly of LANEY)dirt(70,ly,W-70,ly,150);
+  dirt(C,70,C,H-70,120);
+  for(const L of LAIRS){ g.fillStyle='#5a4632'; g.beginPath(); g.arc(L.x,L.y,95,0,7); g.fill();
+    g.strokeStyle='#e8b64c'; g.lineWidth=5; g.beginPath(); g.arc(L.x,L.y,95,0,7); g.stroke(); }
   for(const t of TEAMS){ const dir=DIR[t];
     g.fillStyle=TEAMCOL[t]+'2e'; g.beginPath(); g.arc(C+dir.x*1010,C+dir.y*1010,300,0,7); g.fill();
     g.strokeStyle=TEAMCOL[t]+'88'; g.lineWidth=4; g.beginPath(); g.arc(C+dir.x*1010,C+dir.y*1010,300,0,7); g.stroke(); }
-  g.fillStyle='#83868f'; g.beginPath(); g.arc(C,C,150,0,7); g.fill();
-  g.strokeStyle=MAP.grove?'#e8b64c':'#585c70'; g.lineWidth=6; g.beginPath(); g.arc(C,C,150,0,7); g.stroke();
+  g.fillStyle='#83868f'; g.beginPath(); g.arc(C,C,130,0,7); g.fill();
+  g.strokeStyle=MAP.grove?'#e8b64c':'#585c70'; g.lineWidth=6; g.beginPath(); g.arc(C,C,130,0,7); g.stroke();
   for(const cp of camps){ g.fillStyle='#6e6250'; g.beginPath(); g.arc(cp.x,cp.y,60,0,7); g.fill(); g.strokeStyle='#4e4436'; g.lineWidth=4; g.beginPath(); g.arc(cp.x,cp.y,60,0,7); g.stroke(); }
   const vg=g.createRadialGradient(C,C,700,C,C,1560); vg.addColorStop(0,'rgba(18,10,44,0)'); vg.addColorStop(1,'rgba(18,10,44,.38)');
   g.fillStyle=vg; g.fillRect(0,0,W,H); }
@@ -1117,22 +1124,24 @@ function handleHeard(txt){ recogRestarts=0;
     if(named.team!==0){ feed('▸ '+named.name+' fights for '+TEAMNAME[named.team]+' — yours are BLUE'); return true; } }
   const ok=voiceCommand(txt); syncRosterSel(); return ok; }
 function endVoice(){ voiceLive=false; if(recog){ try{recog.stop();}catch(_){} recog=null; } micBtn.textContent='🎤 VOICE'; hideRoster(); }
+function micFail(msg){ if(recog){ try{recog.stop();}catch(_){} recog=null; } micBtn.textContent='🎤 NAMES — tap one'; feed(msg); }
 function startRecog(SR){ recog=new SR(); recog.lang='en-US'; recog.interimResults=false;
   recog.onresult=e=>{ const txt=e.results[0][0].transcript; handleHeard(txt); };
   recog.onerror=e=>{ const c=e&&e.error;
-    if(c==='not-allowed'||c==='service-not-allowed'){ feed('Mic is blocked — allow microphone access for this page, then tap VOICE again'); endVoice(); }
-    else if(c==='audio-capture'){ feed('No microphone found on this device'); endVoice(); }
+    if(c==='not-allowed'||c==='service-not-allowed')micFail('Mic is blocked in this viewer — tap a name, then use ⌨️ TYPE for orders');
+    else if(c==='audio-capture')micFail('No microphone found — tap a name, then use ⌨️ TYPE for orders');
     else if(c==='network')feed('Voice service unreachable — check your connection');
     else if(c==='no-speech')feed('Didn\'t hear anything — speak up, Coach');
     else feed('Mic didn\'t catch that'); };
   recog.onend=()=>{ if(!voiceLive){ recog=null; return; }
-    recogRestarts++; if(recogRestarts>40){ endVoice(); return; }
+    recogRestarts++; if(recogRestarts>40){ micFail('Mic stopped — tap a name, then use ⌨️ TYPE for orders'); return; }
     setTimeout(()=>{ if(voiceLive&&recog){ try{ recog.start(); }catch(_){ startRecog(SR); } } },180); };
-  try{ recog.start(); }catch(err){ recog=null; } }
+  try{ recog.start(); }catch(err){ recog=null; micFail('Mic could not start here — tap a name, then use ⌨️ TYPE for orders'); } }
 micBtn.onclick=()=>{ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ feed('No voice recognition in this viewer — open the game link in Chrome for voice, or use ⌨️ TYPE'); return; }
   if(voiceLive){ endVoice(); return; }
-  voiceLive=true; recogRestarts=0; micBtn.textContent='🔴 LISTENING…'; feed('Listening, Coach — say a name'); showRoster(); startRecog(SR); };
+  voiceLive=true; recogRestarts=0; showRoster();
+  if(!SR){ micBtn.textContent='🎤 NAMES — tap one'; feed('No voice recognition in this viewer — tap a name, then use ⌨️ TYPE for orders'); return; }
+  micBtn.textContent='🔴 LISTENING…'; feed('Listening, Coach — say a name'); startRecog(SR); };
 function s2w(px,py){ return{x:cam.x+(px-VW/2)/cam.s, y:cam.y+(py-VH/2)/(cam.s*0.88)}; }
 function handleTap(px,py){ const wpt=s2w(px,py);
   let bestA=null,bd=52; for(const a of agents)if(a.alive&&a.team===0){const d=Math.hypot(a.x-wpt.x,a.y-26-wpt.y); if(d<bd){bd=d;bestA=a;}}
